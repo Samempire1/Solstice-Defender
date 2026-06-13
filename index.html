@@ -74,17 +74,7 @@ canvas{display:block;position:absolute;top:0;left:0;width:100%;height:100%}
 #ov-sc{font-size:12px;color:#6a6058;margin-bottom:.2rem;display:none}
 #ov-hi{font-size:10px;color:#3a3830;margin-bottom:.8rem;display:none}
 #ov-btn{font-size:14px;padding:14px 48px;background:transparent;border:.5px solid #c8a96e;color:#c8a96e;border-radius:6px;cursor:pointer;letter-spacing:.08em;-webkit-appearance:none;min-height:48px}
-/* Mobile touch controls */
-#touch-controls{position:absolute;bottom:0;left:0;width:100%;height:140px;pointer-events:none;z-index:10}
-#dpad{position:absolute;bottom:20px;left:20px;width:120px;height:120px;pointer-events:all}
-.dpad-btn{position:absolute;width:36px;height:36px;background:rgba(255,255,255,.08);border:.5px solid rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;color:rgba(255,255,255,.4);cursor:pointer;user-select:none;-webkit-user-select:none}
-#btn-up{top:0;left:42px}
-#btn-down{bottom:0;left:42px}
-#btn-left{top:42px;left:0}
-#btn-right{top:42px;right:0}
-#right-controls{position:absolute;bottom:20px;right:20px;display:flex;flex-direction:column;gap:10px;align-items:flex-end;pointer-events:all}
-#btn-shoot{width:64px;height:64px;background:rgba(200,169,110,.15);border:1.5px solid rgba(200,169,110,.4);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(200,169,110,.7);letter-spacing:.06em;cursor:pointer;user-select:none;-webkit-user-select:none}
-#btn-bomb{width:44px;height:44px;background:rgba(240,160,48,.12);border:1.5px solid rgba(240,160,48,.35);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;user-select:none;-webkit-user-select:none}
+/* Mobile: no on-screen buttons needed */
 #hint{position:absolute;bottom:4px;left:0;right:0;text-align:center;font-size:8px;color:rgba(255,255,255,.1);pointer-events:none;letter-spacing:.04em}
 </style>
 </head>
@@ -112,20 +102,6 @@ canvas{display:block;position:absolute;top:0;left:0;width:100%;height:100%}
     <div id="grace-el"></div>
   </div>
   <div id="lvl-ann"><div id="lvl-big"></div><div id="lvl-sub"></div></div>
-
-  <!-- Mobile touch controls -->
-  <div id="touch-controls">
-    <div id="dpad">
-      <div class="dpad-btn" id="btn-up">▲</div>
-      <div class="dpad-btn" id="btn-down">▼</div>
-      <div class="dpad-btn" id="btn-left">◀</div>
-      <div class="dpad-btn" id="btn-right">▶</div>
-    </div>
-    <div id="right-controls">
-      <div id="btn-shoot">FIRE</div>
-      <div id="btn-bomb">💣</div>
-    </div>
-  </div>
 
   <div id="cutscene">
     <div id="cut-zone"></div>
@@ -155,14 +131,14 @@ canvas{display:block;position:absolute;top:0;left:0;width:100%;height:100%}
       <span class="op op-c">Levels 7–9 · Sol</span>
     </div>
     <div id="ov-ctrl">
-      D-pad = move &nbsp;·&nbsp; FIRE button = shoot &nbsp;·&nbsp; 💣 = bomb<br>
-      On desktop: WASD / Arrows + Space + B
+      Touch &amp; drag = move ship · Auto-shoots while holding<br>
+      Desktop: WASD / Arrows = move · Space = shoot · B = bomb · P = pause
     </div>
     <div id="ov-lboard"><h3>Top Scores</h3><div id="ov-lb-rows"></div></div>
     <div id="ov-sc"></div><div id="ov-hi"></div>
     <button id="ov-btn" onclick="startGame()">Begin</button>
   </div>
-  <div id="hint">WASD/Arrows=move · Space=shoot · B=bomb · P=pause</div>
+  <div id="hint">WASD/Arrows+Space=PC · Touch &amp; hold=mobile · B=bomb · P=pause</div>
 </div>
 
 <script>
@@ -229,9 +205,8 @@ let waveNoDamage=true;
 let leaderboard=[];
 try{leaderboard=JSON.parse(localStorage.getItem('solstice_lb2')||'[]');}catch(e){leaderboard=[];}
 
-// Mobile touch state
-let touchShoot=false,touchBomb=false;
-let mobileKeys={l:false,r:false,u:false,d:false};
+// Mobile touch — finger follow
+let touchActive=false,touchTargetX=.5,touchTargetY=.82;
 
 function thOf(l){return THEMES[LEVELS[l].th];}
 function acOf(l){return thOf(l).color;}
@@ -578,15 +553,21 @@ function update(){
   if(pwTriple>0)pwTriple--;if(pwRapid>0)pwRapid--;if(pwShield>0)pwShield--;if(pwDual>0)pwDual--;if(pw5Gun>0)pw5Gun--;
   if(pInv>0)pInv--;if(comboTimer>0){comboTimer--;if(comboTimer===0)combo=0;}
 
-  const ml=keys.l||mobileKeys.l,mr=keys.r||mobileKeys.r,mu=keys.u||mobileKeys.u,md=keys.d||mobileKeys.d;
-  if(ml)pvx-=pspd;if(mr)pvx+=pspd;if(mu)pvy-=pspd;if(md)pvy+=pspd;
+  // Keyboard movement
+  if(keys.l)pvx-=pspd;if(keys.r)pvx+=pspd;if(keys.u)pvy-=pspd;if(keys.d)pvy+=pspd;
+  // Touch drag movement — ship follows finger smoothly
+  if(touchActive){
+    const tx=Math.max(.04,Math.min(.96,touchTargetX));
+    const ty=Math.max(PYMIN,Math.min(PYMAX,touchTargetY));
+    pvx+=(tx-px)*.18;
+    pvy+=(ty-py)*.18;
+  }
   pvx*=.8;pvy*=.8;
   px=Math.max(.04,Math.min(.96,px+pvx));py=Math.max(PYMIN,Math.min(PYMAX,py+pvy));
 
   const si=pwRapid>0?6:15;if(pShootCD>0)pShootCD--;
-  if((keys.s||touchShoot)&&pShootCD===0){fireBullets();pShootCD=si;}
+  if((keys.s||touchActive)&&pShootCD===0){fireBullets();pShootCD=si;}
   if(keys.b&&!keys._bp&&bombsLeft>0){useBomb();}keys._bp=keys.b;
-  if(touchBomb){useBomb();touchBomb=false;}
 
   maybeRespawnWave();
   if(enemies.every(e=>!e.alive)&&wavesSpawned>LEVELS[lvl].rw&&!lvlDone){lvlDone=true;nextLevel();}
@@ -676,30 +657,8 @@ document.addEventListener('keyup',e=>{
   if(e.key===' ')keys.s=false;
 });
 
-// D-pad touch controls
-function setupDpad(){
-  const dirs={
-    'btn-up':   ()=>{mobileKeys.u=true;},
-    'btn-down': ()=>{mobileKeys.d=true;},
-    'btn-left': ()=>{mobileKeys.l=true;},
-    'btn-right':()=>{mobileKeys.r=true;}
-  };
-  Object.keys(dirs).forEach(id=>{
-    const el=document.getElementById(id);
-    el.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();dirs[id]();},{passive:false});
-    el.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();mobileKeys={l:false,r:false,u:false,d:false};},{passive:false});
-    el.addEventListener('touchcancel',e=>{e.preventDefault();mobileKeys={l:false,r:false,u:false,d:false};},{passive:false});
-  });
-
-  const shootBtn=document.getElementById('btn-shoot');
-  shootBtn.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();touchShoot=true;},{passive:false});
-  shootBtn.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();touchShoot=false;},{passive:false});
-
-  const bombBtn=document.getElementById('btn-bomb');
-  bombBtn.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();touchBomb=true;},{passive:false});
-  bombBtn.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();},{passive:false});
-}
-setupDpad();
+// Mobile: touch and hold to move ship + auto-shoot
+// Touch position tracked via canvas touchstart/touchmove/touchend below
 
 // Cutscene dismiss — tap anywhere on cutscene
 document.getElementById('cutscene').addEventListener('touchstart',e=>{
@@ -707,6 +666,38 @@ document.getElementById('cutscene').addEventListener('touchstart',e=>{
   initAudio();dismissCutscene();
 },{passive:false});
 document.getElementById('cutscene').addEventListener('click',()=>{initAudio();dismissCutscene();});
+
+// Mobile drag-to-move: touch and hold moves ship to finger position, auto-shoots
+let touchActive=false,touchTargetX=0,touchTargetY=0;
+
+cv.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  initAudio();
+  if(cutsceneCB){dismissCutscene();return;}
+  if(!gameOn||paused)return;
+  const r=gw.getBoundingClientRect();
+  touchActive=true;
+  touchTargetX=Math.max(.04,Math.min(.96,(e.touches[0].clientX-r.left)/W));
+  touchTargetY=Math.max(PYMIN,Math.min(PYMAX,(e.touches[0].clientY-r.top)/H));
+},{passive:false});
+
+cv.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(!gameOn||paused||!touchActive)return;
+  const r=gw.getBoundingClientRect();
+  touchTargetX=Math.max(.04,Math.min(.96,(e.touches[0].clientX-r.left)/W));
+  touchTargetY=Math.max(PYMIN,Math.min(PYMAX,(e.touches[0].clientY-r.top)/H));
+},{passive:false});
+
+cv.addEventListener('touchend',e=>{
+  e.preventDefault();
+  touchActive=false;
+},{passive:false});
+
+cv.addEventListener('touchcancel',e=>{
+  e.preventDefault();
+  touchActive=false;
+},{passive:false});
 
 renderLeaderboard('ov-lb-rows');
 </script>
